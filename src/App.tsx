@@ -58,7 +58,7 @@ import {
 } from 'recharts';
 import { cn, type Client, type Opportunity, type Project, type Transaction, type ContactHistory, type Task } from './types';
 import { auth, db, googleProvider, isFirebaseConfigured } from './lib/firebase';
-import { signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { ref, onValue, push, set, remove, update } from 'firebase/database';
 import { initializeUsers } from './initializeUsers';
 
@@ -353,7 +353,36 @@ export default function App() {
     }
   }, [darkMode]);
 
-  const handleLogin = () => signInWithPopup(auth, googleProvider);
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error: any) {
+      const code = error?.code || 'auth/unknown';
+      let message = 'Falha ao entrar com Google. Verifique as configurações de autenticação.';
+
+      if (code === 'auth/unauthorized-domain') {
+        message = 'Domínio não autorizado no Firebase Auth. Adicione seu domínio da Vercel em Authentication > Settings > Authorized domains.';
+      } else if (code === 'auth/operation-not-allowed') {
+        message = 'Login Google desabilitado no Firebase. Ative em Authentication > Sign-in method > Google.';
+      } else if (code === 'auth/popup-blocked') {
+        message = 'Popup bloqueado pelo navegador. Permita popups para este site e tente novamente.';
+      } else if (code === 'auth/popup-closed-by-user') {
+        message = 'O popup de login foi fechado antes da conclusão.';
+      } else if (code === 'auth/invalid-api-key') {
+        message = 'VITE_FIREBASE_API_KEY inválida ou ausente na Vercel.';
+      } else if (code === 'auth/network-request-failed') {
+        message = 'Falha de rede ao autenticar. Verifique conexão e tente novamente.';
+      }
+
+      if (code === 'auth/popup-blocked') {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+
+      console.error('Erro no login Google:', code, error);
+      alert(`${message}\n\nCódigo: ${code}`);
+    }
+  };
   const handleLogout = () => signOut(auth);
 
   const handleEdit = (type: 'client' | 'opportunity' | 'project' | 'transaction', data: any) => {
